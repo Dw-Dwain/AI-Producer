@@ -1,0 +1,35 @@
+# Database snapshots
+*.db
+*.db-journal
+*.db-wal
+studio/database/*.db
+studio/database/*.db-journal
+
+# Python compilation files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Isolated logging folder
+logs/
+studio/logs/
+*.log
+
+# Large media outputs
+output/
+studio/output/
+audio_assets/
+studio/audio_assets/
+
+# Deep learning weights directories
+models/
+studio/models/
+
+# Backup archives
+backups/
+studio/backups/
+
+# Local IDE directories
+.vscode/
+.idea/
+.env
