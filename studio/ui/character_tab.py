@@ -20,6 +20,11 @@ def create_character_tab(db: DatabaseManager):
                 # Active character database ID tracker
                 char_edit_id = gr.State(None)
                 
+                with gr.Row():
+                    btn_save_char = gr.Button("Save Character profile", variant="primary")
+                    btn_clear_char = gr.Button("Clear Editor Form", variant="secondary")
+                char_msg = gr.Markdown("")
+                
                 # Tabbed accordions for editor organization
                 with gr.Tabs():
                     with gr.Tab("Core Profile"):
@@ -76,10 +81,7 @@ def create_character_tab(db: DatabaseManager):
                         btn_delete_rel = gr.Button("Remove Connection (Select ID row from table)", variant="stop")
                         selected_rel_row = gr.State(None)
 
-                with gr.Row():
-                    btn_save_char = gr.Button("Save Character profile", variant="primary")
-                    btn_clear_char = gr.Button("Clear Editor Form", variant="secondary")
-                char_msg = gr.Markdown("")
+
 
             # ==========================================
             # RIGHT PANEL: DIRECTORY, PORTFOLIO & CATEGORIZED GALLERY
@@ -319,7 +321,7 @@ def create_character_tab(db: DatabaseManager):
         def save_character_fn(edit_id, name, age, gender, desc, notes, tags, bio, personality, voice, template,
                               hair, eyes, body, clothing, ethnicity, dna_desc):
             if not name or not name.strip():
-                return gr.update(), "⚠️ Character name is required.", edit_id, gr.update()
+                return gr.update(), "⚠️ Character name is required.", edit_id, gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
             
             clean_name = name.strip()
             folder_name = clean_name.lower().replace(" ", "_")
@@ -350,12 +352,12 @@ def create_character_tab(db: DatabaseManager):
                     dna_description=dna_desc.strip()
                 )
                 if not char_id:
-                    return gr.update(), "⚠️ A character with this name already exists.", edit_id, gr.update()
-                msg = f"✅ Character '{clean_name}' profile created."
+                    return gr.update(), "⚠️ A character with this name already exists.", edit_id, gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+                msg = "✅ Character saved successfully"
             else:
                 char = db.get_character(edit_id)
                 if not char:
-                    return gr.update(), "⚠️ Character not found.", edit_id, gr.update()
+                    return gr.update(), "⚠️ Character not found.", edit_id, gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
                 
                 db.update_character(
                     char_id=edit_id,
@@ -399,8 +401,8 @@ def create_character_tab(db: DatabaseManager):
                     with db._get_connection() as conn:
                         conn.execute("UPDATE characters SET folder_path = ? WHERE id = ?", (char_folder, char_id))
                         conn.commit()
-                msg = f"✅ Character '{clean_name}' profile updated."
-
+                msg = "✅ Character updated successfully"
+ 
             # Refresh lists
             chars_list = db.list_characters()
             names = [c["name"] for c in chars_list]
@@ -412,7 +414,11 @@ def create_character_tab(db: DatabaseManager):
                 gr.update(choices=names, value=clean_name),
                 msg,
                 char_id, # Keep saved ID in context
-                updates[4] # rel_target choices
+                updates[4], # rel_target choices
+                updates[0], # filter_gender
+                updates[1], # filter_tag
+                updates[2], # filter_project
+                updates[3]  # filter_location
             )
 
         def select_character_fn(name):
@@ -650,7 +656,10 @@ def create_character_tab(db: DatabaseManager):
                 char_biography, char_personality, char_voice, char_prompt_template,
                 dna_hair, dna_eyes, dna_body, dna_clothing, dna_ethnicity, dna_description
             ],
-            outputs=[char_selector, char_msg, char_edit_id, rel_target]
+            outputs=[
+                char_selector, char_msg, char_edit_id, rel_target,
+                filter_gender, filter_tag, filter_project, filter_location
+            ]
         )
         
         # Compile/Preview prompt
