@@ -155,9 +155,9 @@ def create_location_tab(db: DatabaseManager):
             char_choices = ["All"] + [c["name"] for c in chars]
             
             return (
-                gr.Dropdown(choices=tag_choices),
-                gr.Dropdown(choices=proj_choices),
-                gr.Dropdown(choices=char_choices)
+                gr.update(choices=tag_choices),
+                gr.update(choices=proj_choices),
+                gr.update(choices=char_choices)
             )
 
         def compile_location_prompt(loc_obj, sub_loc_obj=None):
@@ -262,7 +262,7 @@ def create_location_tab(db: DatabaseManager):
             updates = get_filter_dropdown_updates()
             
             return (
-                gr.Dropdown(choices=names, value=clean_name),
+                gr.update(choices=names, value=clean_name),
                 msg,
                 loc_id, # Keep loaded
                 gr.update(value=None),
@@ -281,9 +281,9 @@ def create_location_tab(db: DatabaseManager):
                     "",
                     "",
                     "",
-                    gr.Dropdown(choices=[], value=None),
+                    gr.update(choices=[], value=None),
                     [],
-                    gr.Dropdown(choices=["Main Location Set"], value="Main Location Set"),
+                    gr.update(choices=["Main Location Set"], value="Main Location Set"),
                     [],
                     ""
                 )
@@ -298,9 +298,9 @@ def create_location_tab(db: DatabaseManager):
                     "",
                     "",
                     "",
-                    gr.Dropdown(choices=[], value=None),
+                    gr.update(choices=[], value=None),
                     [],
-                    gr.Dropdown(choices=["Main Location Set"], value="Main Location Set"),
+                    gr.update(choices=["Main Location Set"], value="Main Location Set"),
                     [],
                     ""
                 )
@@ -327,9 +327,9 @@ def create_location_tab(db: DatabaseManager):
                 desc_md,
                 notes_md,
                 compiled_prompt,
-                gr.Dropdown(choices=room_names, value=room_names[0] if room_names else None),
+                gr.update(choices=room_names, value=room_names[0] if room_names else None),
                 room_df_rows,
-                gr.Dropdown(choices=["Main Location Set"] + room_names, value="Main Location Set"),
+                gr.update(choices=["Main Location Set"] + room_names, value="Main Location Set"),
                 gallery,
                 ""
             )
@@ -378,7 +378,7 @@ def create_location_tab(db: DatabaseManager):
             updates = get_filter_dropdown_updates()
             
             return (
-                gr.Dropdown(choices=names, value=names[0] if names else None), 
+                gr.update(choices=names, value=names[0] if names else None), 
                 f"❌ Location Set '{loc['name'] if loc else 'Unknown'}' deleted.", 
                 None,
                 updates[0],
@@ -489,7 +489,7 @@ def create_location_tab(db: DatabaseManager):
             rooms = db.list_sub_locations(loc_id)
             room_names = [r["name"] for r in rooms]
             
-            return gr.Dropdown(choices=room_names, value=clean_room_name), msg, gr.update(choices=["Main Location Set"] + room_names, value=clean_room_name)
+            return gr.update(choices=room_names, value=clean_room_name), msg, gr.update(choices=["Main Location Set"] + room_names, value=clean_room_name)
 
         def load_room_edit_form_fn(loc_id, room_name):
             if not room_name or loc_id is None:
@@ -530,7 +530,7 @@ def create_location_tab(db: DatabaseManager):
                 
             rooms = db.list_sub_locations(loc_id)
             room_names = [r["name"] for r in rooms]
-            return gr.Dropdown(choices=room_names, value=room_names[0] if room_names else None), msg, gr.update(choices=["Main Location Set"] + room_names, value="Main Location Set")
+            return gr.update(choices=room_names, value=room_names[0] if room_names else None), msg, gr.update(choices=["Main Location Set"] + room_names, value="Main Location Set")
 
         def add_location_photos_fn(loc_id, scope_name, files):
             if loc_id is None:
@@ -583,7 +583,7 @@ def create_location_tab(db: DatabaseManager):
                 character_id=char_id
             )
             names = [l["name"] for l in locs]
-            return gr.Dropdown(choices=names, value=names[0] if names else None)
+            return gr.update(choices=names, value=names[0] if names else None)
 
         def reset_filters_fn():
             return "", "All", "All", "All"

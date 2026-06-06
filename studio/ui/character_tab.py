@@ -215,11 +215,11 @@ def create_character_tab(db: DatabaseManager):
             char_choices = [c["name"] for c in chars]
             
             return (
-                gr.Dropdown(choices=gender_choices),
-                gr.Dropdown(choices=tag_choices),
-                gr.Dropdown(choices=proj_choices),
-                gr.Dropdown(choices=loc_choices),
-                gr.Dropdown(choices=char_choices)
+                gr.update(choices=gender_choices),
+                gr.update(choices=tag_choices),
+                gr.update(choices=proj_choices),
+                gr.update(choices=loc_choices),
+                gr.update(choices=char_choices)
             )
 
         # Dynamic search and filtering coordinator
@@ -244,7 +244,7 @@ def create_character_tab(db: DatabaseManager):
                 location_id=loc_id
             )
             names = [c["name"] for c in chars]
-            return gr.Dropdown(choices=names, value=names[0] if names else None)
+            return gr.update(choices=names, value=names[0] if names else None)
 
         def reset_filters_fn():
             return (
@@ -409,7 +409,7 @@ def create_character_tab(db: DatabaseManager):
             updates = get_filter_dropdown_updates()
             
             return (
-                gr.Dropdown(choices=names, value=clean_name),
+                gr.update(choices=names, value=clean_name),
                 msg,
                 char_id, # Keep saved ID in context
                 updates[4] # rel_target choices
@@ -617,7 +617,7 @@ def create_character_tab(db: DatabaseManager):
             chars_list = db.list_characters()
             names = [c["name"] for c in chars_list]
             
-            return gr.Dropdown(choices=names, value=names[0] if names else None), f"❌ Profile for '{char['name'] if char else 'Unknown'}' deleted.", None
+            return gr.update(choices=names, value=names[0] if names else None), f"❌ Profile for '{char['name'] if char else 'Unknown'}' deleted.", None
 
         # ==========================================
         # WIRE UP LISTENERS

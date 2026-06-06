@@ -51,7 +51,7 @@ def create_preset_tab(db: DatabaseManager):
         def load_presets_list():
             presets = db.list_presets()
             names = [p["name"] for p in presets]
-            return gr.Dropdown(choices=names, value=names[0] if names else None)
+            return gr.update(choices=names, value=names[0] if names else None)
 
         def save_preset_fn(name, w, h, fps, frames, model, pipe, motion, notes):
             if not name or not name.strip():
@@ -72,7 +72,7 @@ def create_preset_tab(db: DatabaseManager):
             
             presets = db.list_presets()
             names = [p["name"] for p in presets]
-            return gr.Dropdown(choices=names, value=clean_name), f"✅ Preset '{clean_name}' saved/updated.", gr.update()
+            return gr.update(choices=names, value=clean_name), f"✅ Preset '{clean_name}' saved/updated.", gr.update()
 
         def select_preset_fn(name):
             if not name:
@@ -123,7 +123,7 @@ def create_preset_tab(db: DatabaseManager):
             
             presets = db.list_presets()
             names = [p["name"] for p in presets]
-            return gr.Dropdown(choices=names, value=names[0] if names else None), f"❌ Preset '{name}' deleted."
+            return gr.update(choices=names, value=names[0] if names else None), f"❌ Preset '{name}' deleted."
 
         # Wire up listeners
         preset_selector.change(fn=select_preset_fn, inputs=[preset_selector], outputs=[preset_details_md])

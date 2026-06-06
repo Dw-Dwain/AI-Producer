@@ -44,17 +44,17 @@ def create_project_tab(db: DatabaseManager):
         def load_projects_list():
             projs = db.list_projects()
             names = [p["name"] for p in projs]
-            return gr.Dropdown(choices=names), gr.Dropdown(choices=names)
+            return gr.update(choices=names), gr.update(choices=names)
 
         def load_episodes_list(proj_name):
             if not proj_name:
-                return gr.Dropdown(choices=[], value=None)
+                return gr.update(choices=[], value=None)
             proj = db.get_project_by_name(proj_name)
             if not proj:
-                return gr.Dropdown(choices=[], value=None)
+                return gr.update(choices=[], value=None)
             eps = db.list_episodes(proj["id"])
             ep_strs = [f"Ep {e['episode_number']}: {e['title'] or 'Untitled'}" for e in eps]
-            return gr.Dropdown(choices=ep_strs, value=ep_strs[0] if ep_strs else None)
+            return gr.update(choices=ep_strs, value=ep_strs[0] if ep_strs else None)
 
         def create_project_fn(name, desc):
             if not name or not name.strip():

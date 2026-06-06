@@ -248,16 +248,16 @@ def create_story_bible_tab(db: DatabaseManager):
         # Notes/Wiki logic
         def load_note_selector_choices(project_name, category_filter):
             if not project_name:
-                return gr.Dropdown(choices=[], value=None)
+                return gr.update(choices=[], value=None)
                 
             proj = db.get_project_by_name(project_name)
             if not proj:
-                return gr.Dropdown(choices=[], value=None)
+                return gr.update(choices=[], value=None)
                 
             cat = None if category_filter == "All" else category_filter
             notes = db.list_story_notes(proj["id"], cat)
             titles = [n["title"] for n in notes]
-            return gr.Dropdown(choices=titles, value=titles[0] if titles else None)
+            return gr.update(choices=titles, value=titles[0] if titles else None)
 
         def view_selected_note_fn(project_name, note_title):
             if not project_name or not note_title:
@@ -345,7 +345,7 @@ def create_story_bible_tab(db: DatabaseManager):
             # Reload selector Choices
             notes = db.list_story_notes(proj["id"])
             titles = [n["title"] for n in notes]
-            return gr.Dropdown(choices=titles, value=title.strip()), msg, saved_id
+            return gr.update(choices=titles, value=title.strip()), msg, saved_id
 
         def delete_story_note_fn(project_name, note_id):
             if not project_name or note_id is None:
@@ -356,7 +356,7 @@ def create_story_bible_tab(db: DatabaseManager):
             proj = db.get_project_by_name(project_name)
             notes = db.list_story_notes(proj["id"])
             titles = [n["title"] for n in notes]
-            return gr.Dropdown(choices=titles, value=titles[0] if titles else None), "❌ Note deleted.", None
+            return gr.update(choices=titles, value=titles[0] if titles else None), "❌ Note deleted.", None
 
         def clear_note_form_fn():
             return None, "", "Lore", "", gr.update(), "🧹 Form cleared."
