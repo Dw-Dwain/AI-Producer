@@ -4,7 +4,7 @@ import logging
 import threading
 import json
 from studio.database.db_manager import DatabaseManager
-from studio.generation import ltx_manager, wan_manager, hunyuan_manager, video_output_manager, tts_manager
+from studio.generation import ltx_manager, wan_manager, hunyuan_manager, video_output_manager, tts_manager, ltx2_manager
 from studio.generation.lipsync_manager import LipSyncManager
 
 logger = logging.getLogger("studio.worker")
@@ -57,6 +57,7 @@ def render_worker_loop(db: DatabaseManager, studio_root: str):
     recover_unfinished_jobs(db)
     
     lipsync = LipSyncManager(studio_root, db=db)
+    ltx2 = ltx2_manager.LTX2Manager(studio_root, db=db)
     while True:
         try:
             job = db.get_next_queued_job()
@@ -77,6 +78,68 @@ def render_worker_loop(db: DatabaseManager, studio_root: str):
                 final_neg = f"{job['negative_prompt']}, {shot_neg_addition}".strip(", ")
 
                 family = job["model_family"]
+
+                # ---- LTX-2.3 subprocess path (audio+video in one MP4) ----
+                # Runs in its own venv; bypasses the in-process diffusers path.
+                if family == "LTX-2.3":
+                    try:
+                        ltx2_job = dict(job)
+                        ltx2_job["prompt"] = final_prompt
+                        ltx2_job["negative_prompt"] = final_neg
+                        out_mp4, ltx2_meta = ltx2.generate(ltx2_job)
+
+                        # Move into the project/character output tree
+                        out_dir = video_output_manager.get_video_output_dir(
+                            studio_root, job.get("project_name") or "", job.get("character_name") or ""
+                        )
+                        final_path = os.path.join(out_dir, os.path.basename(out_mp4))
+                        try:
+                            import shutil
+                            shutil.move(out_mp4, final_path)
+                            if os.path.exists(out_mp4 + ".json"):
+                                shutil.move(out_mp4 + ".json", final_path + ".json")
+                        except Exception:
+                            final_path = out_mp4
+
+                        # Thumbnail + duration from the finished MP4
+                        thumb_path = None
+                        duration = None
+                        try:
+                            import imageio
+                            from PIL import Image
+                            reader = imageio.get_reader(final_path)
+                            first = reader.get_data(0)
+                            try:
+                                duration = reader.get_meta_data().get("duration")
+                            except Exception:
+                                duration = None
+                            reader.close()
+                            img = Image.fromarray(first)
+                            img.thumbnail((320, 320))
+                            thumb_path = os.path.splitext(final_path)[0] + "_thumb.png"
+                            img.save(thumb_path, format="PNG")
+                        except Exception as thumb_err:
+                            logger.warning(f"LTX-2.3 thumbnail failed: {thumb_err}")
+
+                        vid_id = db.add_generated_video(
+                            file_path=final_path, pipeline=job["pipeline"], model_family=family,
+                            prompt=final_prompt, negative_prompt=final_neg, seed=job["seed"],
+                            width=job["width"], height=job["height"], fps=job["fps"], num_frames=job["num_frames"],
+                            steps=job["steps"], guidance_scale=job["guidance_scale"],
+                            lora_path=job.get("lora_path") or "", lora_name=job.get("lora_name") or "",
+                            lora_weight=job.get("lora_weight") or 0.0, thumbnail_path=thumb_path,
+                            duration_seconds=duration, preset=job["preset"], project_id=job["project_id"],
+                            episode_id=job.get("episode_id"), scene_id=job.get("scene_id"), shot_id=job.get("shot_id"),
+                            dialogue_line_id=job.get("dialogue_line_id"), character_id=job["character_id"],
+                            location_id=job["location_id"], model_name="LTX-2.3",
+                            references_json=job.get("references_json") or "[]",
+                        )
+                        db.update_render_job_status(job["id"], "completed", video_id=vid_id)
+                        logger.info(f"LTX-2.3 job {job['id']} completed! Video ID: {vid_id} (audio+video)")
+                    except Exception as exc:
+                        logger.error(f"LTX-2.3 generation failed for job {job['id']}: {exc}", exc_info=True)
+                        db.update_render_job_status(job["id"], "failed", error_message=str(exc))
+                    continue
                 mgr = ltx_manager if family == "LTX-Video" else (wan_manager if family == "Wan 2.2" else hunyuan_manager)
                 
                 # Unload other model families to protect VRAM usage

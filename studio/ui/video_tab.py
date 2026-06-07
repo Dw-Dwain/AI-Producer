@@ -37,11 +37,21 @@ _LTX_PRESETS = {
     "cinema":     {"width": 768, "height": 1344, "fps": 24, "num_frames": 129, "steps": 50, "guidance_scale": 4.0, "pipeline": "two_stage_hq"},
 }
 
+# LTX-2.3 — native audio+video. Pipeline values map to ltx2_manager modules.
+_LTX2_PRESETS = {
+    "draft":      {"width": 480, "height": 832,  "fps": 25, "num_frames": 97,  "steps": 8,  "guidance_scale": 1.0, "pipeline": "distilled"},
+    "production": {"width": 704, "height": 1216, "fps": 25, "num_frames": 121, "steps": 30, "guidance_scale": 3.0, "pipeline": "two_stage"},
+    "cinema":     {"width": 1088, "height": 1920, "fps": 25, "num_frames": 121, "steps": 40, "guidance_scale": 3.5, "pipeline": "two_stage"},
+}
+
 _FAMILY_PRESETS = {
     "Wan 2.2":       _WAN_PRESETS,
     "Hunyuan Video": _HUNYUAN_PRESETS,
+    "LTX-2.3":       _LTX2_PRESETS,
     "LTX-Video":     _LTX_PRESETS,
 }
+
+_LTX2_PIPELINES = ["distilled", "one_stage", "two_stage"]
 
 _DEFAULT_FAMILY  = "Wan 2.2"
 _DEFAULT_PRESET  = _WAN_PRESETS["production"]
@@ -90,8 +100,32 @@ def create_video_tab(db: DatabaseManager):
                         btn_unload_hunyuan    = gr.Button("🗑️ Unload", variant="stop")
                     mm_status_html_hunyuan = gr.HTML("<div style='padding:8px;color:#9ca3af;font-size:0.85rem;'>Hunyuan status...</div>")
 
-                # LTX-Video — third tab, draft/iteration only
-                with gr.TabItem("LTX-Video (Draft / B-roll)"):
+                # LTX-2.3 — native audio+video (subprocess / own venv)
+                with gr.TabItem("LTX-2.3 ★ Audio+Video"):
+                    gr.Markdown(
+                        "LTX-2.3 generates **synchronized audio + video** in one pass — these shots "
+                        "skip the TTS + lip-sync steps. Runs in its own `uv` venv via subprocess "
+                        "(needs torch 2.7 / CUDA ≥12.7). Set the paths below."
+                    )
+                    with gr.Row():
+                        with gr.Column(scale=3):
+                            mm_ltx2_repo   = gr.Textbox(label="LTX-2 Repo Dir", value="/workspace/LTX-2", interactive=True)
+                            mm_ltx2_python = gr.Textbox(label="LTX-2 venv Python", value="/workspace/LTX-2/.venv/bin/python", interactive=True)
+                            mm_ltx2_ckpt   = gr.Textbox(label="LTX-2.3 Checkpoint (.safetensors)", placeholder="/workspace/models/LTX-2.3/ltxv-2.3-....safetensors", interactive=True)
+                            mm_ltx2_upsamp = gr.Textbox(label="Spatial Upsampler (.safetensors)", placeholder="/workspace/models/LTX-2.3/...upsampler....safetensors", interactive=True)
+                            mm_ltx2_lora   = gr.Textbox(label="Distilled LoRA (.safetensors)", placeholder="/workspace/models/LTX-2.3/...distilled....safetensors", interactive=True)
+                            mm_ltx2_gemma  = gr.Textbox(label="Gemma 3 Encoder Dir", placeholder="/workspace/models/LTX-2.3/gemma", interactive=True)
+                        with gr.Column(scale=1):
+                            mm_ltx2_module = gr.Dropdown(label="Pipeline Module", choices=["ltx_pipelines.ti2vid_two_stages", "ltx_pipelines.ti2vid_one_stage", "ltx_pipelines.distilled"], value="ltx_pipelines.ti2vid_two_stages", interactive=True)
+                            mm_ltx2_quant  = gr.Dropdown(label="Quantization", choices=["", "fp8-cast"], value="fp8-cast", interactive=True)
+                            mm_ltx2_extra  = gr.Textbox(label="Extra CLI args (advanced)", placeholder="--foo bar", interactive=True)
+                    with gr.Row():
+                        btn_detect_ltx2   = gr.Button("🔍 Detect", variant="secondary")
+                        btn_save_cfg_ltx2 = gr.Button("💾 Save Paths", variant="primary")
+                    mm_status_html_ltx2 = gr.HTML("<div style='padding:8px;color:#9ca3af;font-size:0.85rem;'>LTX-2.3 status...</div>")
+
+                # LTX-Video — old 0.9.x line, draft/iteration only
+                with gr.TabItem("LTX-Video 0.9.x (Draft)"):
                     with gr.Row():
                         with gr.Column(scale=3):
                             mm_ltx_path      = gr.Textbox(label="LTX-Video Model Path", placeholder="/workspace/models/ltx-video-2b", interactive=True)
@@ -129,7 +163,7 @@ def create_video_tab(db: DatabaseManager):
                         gr.Markdown("#### 🤖 Model & Quality")
                         vid_model_family = gr.Radio(
                             label="Model Family",
-                            choices=["Wan 2.2", "Hunyuan Video", "LTX-Video"],
+                            choices=["Wan 2.2", "Hunyuan Video", "LTX-2.3", "LTX-Video"],
                             value="Wan 2.2",
                             interactive=True,
                         )
@@ -245,7 +279,7 @@ def create_video_tab(db: DatabaseManager):
                     lib_filter_loc   = gr.Dropdown(label="Location",  choices=["All"], value="All", interactive=True)
                     lib_filter_date  = gr.Dropdown(label="Date", choices=["All Time", "Today", "Last 7 Days"], value="All Time", interactive=True)
                 with gr.Row():
-                    lib_filter_family   = gr.Dropdown(label="Family",   choices=["All", "Wan 2.2", "Hunyuan Video", "LTX-Video"], value="All", interactive=True)
+                    lib_filter_family   = gr.Dropdown(label="Family",   choices=["All", "Wan 2.2", "Hunyuan Video", "LTX-2.3", "LTX-Video"], value="All", interactive=True)
                     lib_filter_pipeline = gr.Dropdown(label="Pipeline", choices=["All", "text2video", "image2video", "distilled", "two_stage", "two_stage_hq"], value="All", interactive=True)
                     btn_lib_refresh = gr.Button("🔄 Refresh Search", variant="primary")
 
@@ -369,6 +403,22 @@ def create_video_tab(db: DatabaseManager):
         _, msg = ltx_manager.load_pipeline(pipe_name, ltx, upscaler, gemma, device, dtype, lora_full, float(lora_wt))
         return on_detect_ltx(ltx, gemma, upscaler, lora_dir) + f"<p style='color:#e5e7eb;'>{msg}</p>"
 
+    def on_save_config_ltx2(repo, python_path, ckpt, upsamp, lora, gemma, module, quant, extra):
+        db.set_setting("ltx2_repo_dir", repo or "")
+        db.set_setting("ltx2_venv_python", python_path or "")
+        db.set_setting("ltx2_checkpoint_path", ckpt or "")
+        db.set_setting("ltx2_upsampler_path", upsamp or "")
+        db.set_setting("ltx2_distilled_lora", lora or "")
+        db.set_setting("ltx2_gemma_root", gemma or "")
+        db.set_setting("ltx2_module", module or "ltx_pipelines.ti2vid_two_stages")
+        db.set_setting("ltx2_quantization", quant or "")
+        db.set_setting("ltx2_extra_args", extra or "")
+        return "<div style='padding:8px;color:#22c55e;'>✅ LTX-2.3 paths saved.</div>"
+
+    def on_detect_ltx2():
+        from studio.generation import ltx2_manager
+        return _status_html(ltx2_manager.detect_models(db), None)
+
     def on_unload(family):
         if family == "LTX-Video":
             from studio.generation import ltx_manager
@@ -393,6 +443,9 @@ def create_video_tab(db: DatabaseManager):
         if family == "LTX-Video":
             pipe_choices = ["distilled", "two_stage", "two_stage_hq"]
             pipe_val     = "distilled"
+        elif family == "LTX-2.3":
+            pipe_choices = _LTX2_PIPELINES
+            pipe_val     = "two_stage"
         else:
             pipe_choices = ["text2video", "image2video"]
             pipe_val     = "text2video"
@@ -428,6 +481,8 @@ def create_video_tab(db: DatabaseManager):
 
         if family == "LTX-Video":
             pipe_choices = ["distilled", "two_stage", "two_stage_hq"]
+        elif family == "LTX-2.3":
+            pipe_choices = _LTX2_PIPELINES
         else:
             pipe_choices = ["text2video", "image2video"]
 
@@ -613,6 +668,9 @@ def create_video_tab(db: DatabaseManager):
 
     btn_save_cfg_ltx.click(on_save_config_ltx, [mm_ltx_path, mm_gemma_path, mm_upscaler_path, mm_lora_dir, mm_device, mm_dtype], [mm_status_html_ltx])
     btn_detect_ltx.click(on_detect_ltx, [mm_ltx_path, mm_gemma_path, mm_upscaler_path, mm_lora_dir], [mm_status_html_ltx])
+
+    btn_save_cfg_ltx2.click(on_save_config_ltx2, [mm_ltx2_repo, mm_ltx2_python, mm_ltx2_ckpt, mm_ltx2_upsamp, mm_ltx2_lora, mm_ltx2_gemma, mm_ltx2_module, mm_ltx2_quant, mm_ltx2_extra], [mm_status_html_ltx2])
+    btn_detect_ltx2.click(on_detect_ltx2, [], [mm_status_html_ltx2])
     btn_load_pipe_ltx.click(on_load_pipe_ltx, [vid_pipeline, mm_ltx_path, mm_gemma_path, mm_upscaler_path, mm_lora_dir, mm_device, mm_dtype, vid_lora_selector, vid_lora_weight], [mm_status_html_ltx])
     btn_unload_ltx.click(lambda: on_unload("LTX-Video"), [], [mm_status_html_ltx])
 
