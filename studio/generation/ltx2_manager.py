@@ -178,7 +178,7 @@ class LTX2Manager:
 
         # Offload takes an enum VALUE (OffloadMode.NONE/CPU/DISK), not a bare flag.
         offload_on = str(_setting(self.db, "ltx2_offload")).lower() in ("1", "true", "yes", "on")
-        cmd += ["--offload", "OffloadMode.CPU" if offload_on else "OffloadMode.NONE"]
+        cmd += ["--offload", "CPU" if offload_on else "NONE"]
 
         # Quantization — only valid on Ada/Hopper/Blackwell; blank on Ampere.
         quant = cfg.get("ltx2_quantization")
