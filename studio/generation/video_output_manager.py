@@ -172,7 +172,8 @@ def _save_mp4_imageio(frames: list, fps: int, mp4_path: str) -> bool:
             mp4_path,
             fps=fps,
             codec="libx264",
-            output_params=["-crf", "18", "-preset", "fast", "-pix_fmt", "yuv420p"],
+            pixelformat="yuv420p",
+            output_params=["-crf", "18", "-preset", "fast"],
             macro_block_size=None,
         )
         for frame in frames:

@@ -16,6 +16,7 @@ safetensors>=0.4.3
 sentencepiece>=0.2.0
 omegaconf>=2.3.0
 tokenizers>=0.19.0
+ftfy>=6.1.0          # required by diffusers Wan I2V pipeline for prompt cleaning
 
 # Video I/O (required for saving generated frames to MP4)
 imageio>=2.34.0
