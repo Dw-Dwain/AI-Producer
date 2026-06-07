@@ -130,60 +130,62 @@ class LTX2Manager:
         )
         cmd = [cfg["ltx2_venv_python"], "-m", module]
 
-        # Flag names verified against ltx_pipelines/utils/args.py.
-        # The distilled pipeline takes --distilled-checkpoint-path; the
-        # one/two-stage pipelines take --checkpoint-path.
-        if module.endswith("distilled"):
+        # Flag set differs per pipeline (verified against each module's --help):
+        #   distilled : --distilled-checkpoint-path, --lora, requires upsampler,
+        #               NO --negative-prompt, NO --num-inference-steps
+        #   two_stage : --checkpoint-path, --distilled-lora, --negative-prompt,
+        #               --num-inference-steps, requires upsampler
+        is_distilled = module.endswith("distilled")
+        is_two_stage = "two_stage" in module
+
+        # Checkpoint
+        if is_distilled:
             cmd += ["--distilled-checkpoint-path", cfg["ltx2_checkpoint_path"]]
         else:
             cmd += ["--checkpoint-path", cfg["ltx2_checkpoint_path"]]
         cmd += ["--gemma-root", cfg["ltx2_gemma_root"]]
 
-        # Two-stage needs the spatial upsampler + distilled LoRA for stage 2.
-        if "two_stage" in module:
-            if cfg.get("ltx2_upsampler_path"):
-                cmd += ["--spatial-upsampler-path", cfg["ltx2_upsampler_path"]]
-            if cfg.get("ltx2_distilled_lora"):
-                # --distilled-lora takes the path; stage strengths are separate
-                # flags with sane defaults in the parser.
-                cmd += ["--distilled-lora", cfg["ltx2_distilled_lora"]]
+        # Spatial upsampler — required by both distilled and two-stage
+        if cfg.get("ltx2_upsampler_path"):
+            cmd += ["--spatial-upsampler-path", cfg["ltx2_upsampler_path"]]
 
-        # Prompt / negative
+        # LoRA flag differs: two-stage uses --distilled-lora for its stage-2 refine.
+        if is_two_stage and cfg.get("ltx2_distilled_lora"):
+            cmd += ["--distilled-lora", cfg["ltx2_distilled_lora"]]
+
+        # Prompt (all). Negative prompt: two-stage/one-stage only.
         cmd += ["--prompt", job.get("prompt") or ""]
-        if job.get("negative_prompt"):
+        if not is_distilled and job.get("negative_prompt"):
             cmd += ["--negative-prompt", job["negative_prompt"]]
 
-        # Resolution / timing / steps / seed.
-        # LTX-2 two-stage requires width/height divisible by 64 — snap to the
-        # nearest multiple of 64 so any UI resolution is valid.
+        # Resolution must be /64; snap any value.
         def _round64(v):
-            v = int(v)
-            return max(64, round(v / 64) * 64)
+            return max(64, round(int(v) / 64) * 64)
         if job.get("width"):      cmd += ["--width", str(_round64(job["width"]))]
         if job.get("height"):     cmd += ["--height", str(_round64(job["height"]))]
         if job.get("num_frames"): cmd += ["--num-frames", str(job["num_frames"])]
         if job.get("fps"):        cmd += ["--frame-rate", str(job["fps"])]
-        if job.get("steps"):      cmd += ["--num-inference-steps", str(job["steps"])]
+        # Inference steps: not accepted by the distilled (fixed-step) pipeline.
+        if not is_distilled and job.get("steps"):
+            cmd += ["--num-inference-steps", str(job["steps"])]
         if job.get("seed") is not None and int(job.get("seed", -1)) >= 0:
             cmd += ["--seed", str(job["seed"])]
 
-        # Image conditioning (image-to-video). --image takes:
-        #   <path> <target_frame> <strength> <noise>
-        # We condition the first frame at full strength by default; tune via
-        # ltx2_extra_args / the I2V conditioning string if needed.
+        # Image conditioning (I2V): --image <path> <frame> <strength> <noise>
         ref = job.get("reference_image_path")
         if ref and os.path.isfile(str(ref)):
             cmd += ["--image", ref, "0", "1.0", "0"]
 
-        # Memory: --offload helps fit on a single 80GB card; fp8 quant reduces
-        # weight footprint. Both configurable.
-        if str(_setting(self.db, "ltx2_offload")).lower() in ("1", "true", "yes", "on"):
-            cmd += ["--offload"]
+        # Offload takes an enum VALUE (OffloadMode.NONE/CPU/DISK), not a bare flag.
+        offload_on = str(_setting(self.db, "ltx2_offload")).lower() in ("1", "true", "yes", "on")
+        cmd += ["--offload", "OffloadMode.CPU" if offload_on else "OffloadMode.NONE"]
+
+        # Quantization — only valid on Ada/Hopper/Blackwell; blank on Ampere.
         quant = cfg.get("ltx2_quantization")
         if quant:
             cmd += ["--quantization", quant]
 
-        # Free-form extra args passthrough (space-separated), set via Settings
+        # Free-form passthrough for anything else.
         extra = _setting(self.db, "ltx2_extra_args") if self.db else ""
         if extra:
             cmd += extra.split()
