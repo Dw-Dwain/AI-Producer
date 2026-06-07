@@ -34,7 +34,13 @@ def _dtype(dtype_str: str):
     return {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}.get(dtype_str, torch.bfloat16)
 
 
-def _auto_offload(pipe, device: str, vram_threshold_gb: float = 20.0) -> bool:
+# Wan 2.2 A14B is a Mixture-of-Experts model: two ~14B experts (~56GB bf16)
+# plus an ~11GB UMT5 text encoder. Keeping all of that resident overflows even
+# an 80GB A100 once generation activations are added. model_cpu_offload swaps
+# the experts in/out (one ~28GB expert on GPU at a time), which fits 80GB with
+# room to spare. So we offload on anything below ~120GB — i.e. everything except
+# H200/B300-class cards that can hold the whole MoE at once.
+def _auto_offload(pipe, device: str, vram_threshold_gb: float = 120.0) -> bool:
     try:
         import torch
         if device == "cuda" and torch.cuda.is_available():
