@@ -169,6 +169,13 @@ def generate_video(
         )
 
         if pipeline_name == "image2video" and reference_image is not None:
+            # Accept either a file path string or a PIL Image directly
+            if isinstance(reference_image, str) and os.path.isfile(reference_image):
+                from PIL import Image as PILImage
+                img = PILImage.open(reference_image).convert("RGB")
+                # Resize to match generation resolution so I2V doesn't distort
+                img = img.resize((w, h), PILImage.LANCZOS)
+                reference_image = img
             kwargs["image"] = reference_image
 
         result = pipe(**kwargs)
