@@ -34,6 +34,7 @@ from studio.ui.preset_tab import create_preset_tab
 from studio.ui.settings_tab import create_settings_tab
 from studio.ui.timeline_tab import create_timeline_tab
 from studio.ui.dashboard_tab import create_dashboard_tab
+from studio.ui.video_tab import create_video_tab
 from studio.generation.worker import start_render_worker
 from studio.deployment.diagnostics import run_system_startup_checks
 
@@ -74,6 +75,7 @@ with gr.Blocks(theme=theme, css=css, title="AI Drama Production Studio") as demo
                 location_outputs = create_location_tab(db)
                 story_bible_outputs = create_story_bible_tab(db)
                 scene_outputs = create_scene_tab(db)
+        video_outputs = create_video_tab(db)
         with gr.TabItem("Production Intelligence"):
             with gr.Tabs():
                 timeline_outputs = create_timeline_tab(db)
@@ -89,6 +91,7 @@ with gr.Blocks(theme=theme, css=css, title="AI Drama Production Studio") as demo
     loc_selector, loc_filter_tag, loc_filter_project, loc_filter_char = location_outputs
     sb_project_selector = story_bible_outputs[0]
     scene_proj_selector, scene_ep_selector, scene_sc_selector, casting_char, casting_loc = scene_outputs
+    vid_proj_selector, vid_char_selector, vid_loc_selector, vid_shot_selector = video_outputs
     timeline_proj_selector, timeline_ep_selector = timeline_outputs
     dashboard_char_selector = dashboard_outputs
     preset_selector = preset_outputs[0]
@@ -128,6 +131,13 @@ with gr.Blocks(theme=theme, css=css, title="AI Drama Production Studio") as demo
                 sc_choices = [f"Scene {scene['scene_number']}: {scene['title'] or 'Untitled'}" for scene in scenes]
                 sc_val = sess_sc if sess_sc in sc_choices else (sc_choices[0] if sc_choices else None)
 
+        # Fetch shot template names for video tab
+        try:
+            shot_templates = db.list_shot_templates() if hasattr(db, "list_shot_templates") else []
+            shot_names = [s["name"] for s in shot_templates] if shot_templates else []
+        except Exception:
+            shot_names = []
+
         return (
             gr.update(choices=proj_names, value=proj_val),
             gr.update(choices=ep_choices, value=ep_val),
@@ -149,6 +159,12 @@ with gr.Blocks(theme=theme, css=css, title="AI Drama Production Studio") as demo
             gr.update(choices=["All"] + proj_names, value="All"),
             gr.update(choices=["All"] + char_names, value="All"),
             gr.update(choices=proj_names, value=proj_val),
+            # Video tab dropdowns
+            gr.update(choices=proj_names, value=proj_val),
+            gr.update(choices=char_names, value=None),
+            gr.update(choices=loc_names, value=None),
+            gr.update(choices=shot_names, value=None),
+            # Scene tab
             gr.update(choices=proj_names, value=proj_val),
             gr.update(choices=ep_choices, value=ep_val),
             gr.update(choices=sc_choices, value=sc_val),
@@ -169,6 +185,9 @@ with gr.Blocks(theme=theme, css=css, title="AI Drama Production Studio") as demo
             char_selector, filter_gender, filter_tag, filter_project, filter_location, rel_target,
             loc_selector, loc_filter_tag, loc_filter_project, loc_filter_char,
             sb_project_selector,
+            # Video tab
+            vid_proj_selector, vid_char_selector, vid_loc_selector, vid_shot_selector,
+            # Scene tab
             scene_proj_selector, scene_ep_selector, scene_sc_selector, casting_char, casting_loc,
             timeline_proj_selector, timeline_ep_selector, dashboard_char_selector,
             preset_selector,

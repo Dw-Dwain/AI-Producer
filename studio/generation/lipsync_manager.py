@@ -65,6 +65,12 @@ class LipSyncManager:
                 f"Code directory for {engine} not found at '{code_dir}'. "
                 f"Please ensure it is installed and configured correctly in Settings."
             )
+        inference_script = os.path.join(code_dir, "inference.py")
+        if not os.path.isfile(inference_script):
+            raise FileNotFoundError(
+                f"inference.py not found in {engine} code directory at '{inference_script}'. "
+                f"Verify the installation is complete and the code_dir points to the repo root."
+            )
         if not os.path.exists(checkpoint_path):
             raise FileNotFoundError(
                 f"Model checkpoint for {engine} not found at '{checkpoint_path}'. "

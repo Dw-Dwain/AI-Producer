@@ -316,6 +316,10 @@ def get_loaded_pipeline_name() -> str | None:
     return _cached_pipeline_name
 
 
+def get_state() -> dict:
+    return _cached_state
+
+
 def get_vram_info() -> str:
     try:
         import torch

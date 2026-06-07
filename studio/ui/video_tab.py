@@ -26,7 +26,7 @@ _PRESETS = {
     },
     "cinema": {
         "width": 1280, "height": 720, "fps": 24, "num_frames": 129,
-        "steps": 50, "guidance_scale": 4.0, "pipeline": "text2video",
+        "steps": 50, "guidance_scale": 4.0, "pipeline": "two_stage_hq",
     },
 }
 
@@ -278,9 +278,15 @@ def create_video_tab(db: DatabaseManager):
         if preset_val == "custom":
             return (gr.update(),)*7
         p = _PRESETS.get(preset_val, _PRESETS["draft"])
+        ltx_pipelines = ["distilled", "two_stage", "two_stage_hq"]
+        wan_hun_pipelines = ["text2video", "image2video"]
+        if pipe_val in ltx_pipelines:
+            resolved_pipe = p["pipeline"] if p["pipeline"] in ltx_pipelines else "distilled"
+        else:
+            resolved_pipe = "text2video"
         return (gr.update(value=p["width"]), gr.update(value=p["height"]), gr.update(value=p["fps"]),
                 gr.update(value=p["num_frames"]), gr.update(value=p["steps"]), gr.update(value=p["guidance_scale"]),
-                gr.update(value=p["pipeline"] if pipe_val in ["distilled", "two_stage", "two_stage_hq"] else "text2video"))
+                gr.update(value=resolved_pipe))
 
     def on_queue_render(prompt, neg_prompt, family, pipeline_name, preset_val, w, h, fps, nf, steps, cfg, lora_dir, lora_sel, lora_wt, seed, ref_img, proj, char, loc, shot):
         proj_id = db.get_project_by_name(proj)["id"] if proj and proj != "All" else None

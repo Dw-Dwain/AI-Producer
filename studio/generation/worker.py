@@ -9,6 +9,15 @@ from studio.generation.lipsync_manager import LipSyncManager
 
 logger = logging.getLogger("studio.worker")
 
+# Module-level singleton — avoids reloading the Kokoro model on every audio job
+_tts_manager_instance: tts_manager.TTSManager | None = None
+
+def _get_tts_manager(studio_root: str) -> tts_manager.TTSManager:
+    global _tts_manager_instance
+    if _tts_manager_instance is None:
+        _tts_manager_instance = tts_manager.TTSManager(os.path.join(studio_root, "audio_assets"))
+    return _tts_manager_instance
+
 def recover_unfinished_jobs(db: DatabaseManager):
     """Scan and recover any render, audio, or lip sync jobs that were left running due to a crash."""
     logger.info("Checking for unfinished or interrupted queue jobs to recover...")
@@ -70,11 +79,115 @@ def render_worker_loop(db: DatabaseManager, studio_root: str):
                 family = job["model_family"]
                 mgr = ltx_manager if family == "LTX-Video" else (wan_manager if family == "Wan 2.2" else hunyuan_manager)
                 
-                state = mgr._cached_state
-                if not state:
-                    logger.warning(f"No pipeline loaded for {family}. Failing job {job['id']}.")
-                    db.update_render_job_status(job["id"], "failed", error_message=f"Pipeline {family} not loaded.")
-                    continue
+                # Unload other model families to protect VRAM usage
+                if family == "LTX-Video":
+                    if wan_manager.get_loaded_pipeline_name() is not None:
+                        logger.info("Pipeline switch detected... Model family changed from Wan 2.2 to LTX-Video. Unloading Wan 2.2 pipeline.")
+                        wan_manager.unload_pipeline()
+                    if hunyuan_manager.get_loaded_pipeline_name() is not None:
+                        logger.info("Pipeline switch detected... Model family changed from Hunyuan Video to LTX-Video. Unloading Hunyuan Video pipeline.")
+                        hunyuan_manager.unload_pipeline()
+                elif family == "Wan 2.2":
+                    if ltx_manager.get_loaded_pipeline_name() is not None:
+                        logger.info("Pipeline switch detected... Model family changed from LTX-Video to Wan 2.2. Unloading LTX-Video pipeline.")
+                        ltx_manager.unload_pipeline()
+                    if hunyuan_manager.get_loaded_pipeline_name() is not None:
+                        logger.info("Pipeline switch detected... Model family changed from Hunyuan Video to Wan 2.2. Unloading Hunyuan Video pipeline.")
+                        hunyuan_manager.unload_pipeline()
+                elif family == "Hunyuan Video":
+                    if ltx_manager.get_loaded_pipeline_name() is not None:
+                        logger.info("Pipeline switch detected... Model family changed from LTX-Video to Hunyuan Video. Unloading LTX-Video pipeline.")
+                        ltx_manager.unload_pipeline()
+                    if wan_manager.get_loaded_pipeline_name() is not None:
+                        logger.info("Pipeline switch detected... Model family changed from Wan 2.2 to Hunyuan Video. Unloading Wan 2.2 pipeline.")
+                        wan_manager.unload_pipeline()
+
+                loaded_pipe_name = mgr.get_loaded_pipeline_name()
+                state = mgr.get_state()
+                is_mock = isinstance(state, dict) and state.get("pipeline") == "mock"
+
+                if is_mock:
+                    logger.info("Using cached model... (Mock state detected for testing)")
+                else:
+                    # Check if pipeline name mismatched or if not currently loaded
+                    if not state or not loaded_pipe_name or loaded_pipe_name != job["pipeline"]:
+                        if state:
+                            logger.info(f"Pipeline switch detected... (cached: {loaded_pipe_name}, requested: {job['pipeline']}). Unloading existing pipeline.")
+                            mgr.unload_pipeline()
+                            state = None
+                        
+                        logger.info(f"Loading model... for {family} with pipeline {job['pipeline']}.")
+                        try:
+                            if family == "LTX-Video":
+                                config = db.get_ltx_config()
+                                ltx_path = config.get("ltx_model_path", "")
+                                if not ltx_path:
+                                    raise ValueError("LTX Model Path is empty in database configuration.")
+                                upscaler_path = config.get("ltx_upscaler_path", "")
+                                gemma_path = config.get("ltx_gemma_path", "")
+                                device = config.get("ltx_device", "cuda")
+                                dtype = config.get("ltx_dtype", "bfloat16")
+                                lora_path = job.get("lora_path") or ""
+                                if lora_path == "None":
+                                    lora_path = ""
+                                lora_wt = 1.0
+                                if job.get("lora_weight") is not None:
+                                    try:
+                                        lora_wt = float(job["lora_weight"])
+                                    except ValueError:
+                                        pass
+
+                                state, msg = mgr.load_pipeline(
+                                    pipeline_name=job["pipeline"],
+                                    ltx_path=ltx_path,
+                                    upscaler_path=upscaler_path,
+                                    gemma_path=gemma_path,
+                                    device=device,
+                                    dtype_str=dtype,
+                                    lora_path=lora_path,
+                                    lora_weight=lora_wt
+                                )
+                            elif family == "Wan 2.2":
+                                config = db.get_wan_config()
+                                wan_path = config.get("wan_model_path", "")
+                                if not wan_path:
+                                    raise ValueError("Wan Model Path is empty in database configuration.")
+                                device = config.get("wan_device", "cuda")
+                                dtype = config.get("wan_dtype", "bfloat16")
+
+                                state, msg = mgr.load_pipeline(
+                                    pipeline_name=job["pipeline"],
+                                    wan_path=wan_path,
+                                    device=device,
+                                    dtype_str=dtype
+                                )
+                            elif family == "Hunyuan Video":
+                                config = db.get_hunyuan_config()
+                                hun_path = config.get("hunyuan_model_path", "")
+                                if not hun_path:
+                                    raise ValueError("Hunyuan Model Path is empty in database configuration.")
+                                device = config.get("hunyuan_device", "cuda")
+                                dtype = config.get("hunyuan_dtype", "bfloat16")
+
+                                state, msg = mgr.load_pipeline(
+                                    pipeline_name=job["pipeline"],
+                                    hunyuan_path=hun_path,
+                                    device=device,
+                                    dtype_str=dtype
+                                )
+                            else:
+                                raise ValueError(f"Unknown model family: {family}")
+
+                            if not state:
+                                raise Exception(f"Model load failed... Manager returned empty state. Details: {msg}")
+                            
+                            logger.info(f"Model loaded successfully... Details: {msg}")
+                        except Exception as exc:
+                            logger.error(f"Model load failed... Error: {exc}", exc_info=True)
+                            db.update_render_job_status(job["id"], "failed", error_message=f"Model load failed: {exc}")
+                            continue
+                    else:
+                        logger.info(f"Using cached model... (cached: {loaded_pipe_name})")
                 
                 frames, actual_seed, err = mgr.generate_video(
                     state=state, prompt=final_prompt, negative_prompt=final_neg, 
@@ -128,7 +241,7 @@ def render_worker_loop(db: DatabaseManager, studio_root: str):
             if audio_job:
                 logger.info(f"Picked up audio job {audio_job['id']}")
                 try:
-                    tts = tts_manager.TTSManager(os.path.join(studio_root, "audio_assets"))
+                    tts = _get_tts_manager(studio_root)
                     audio_path = tts.generate_voice(
                         text=audio_job["dialogue_text"], 
                         voice_id=audio_job["voice_id"], 
