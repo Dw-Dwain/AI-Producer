@@ -466,6 +466,9 @@ Every issue hit during deployment and its fix.
 | `Cannot find empty port in range: 7860-7860` | Old app instance holding the port | `pkill -9 -f studio/app.py`; if D-state, launch on `--port 7861` |
 | `NameError: name 'ftfy' is not defined` | Missing diffusers optional dep (Wan I2V) | `pip install ftfy` (now in requirements) |
 | OOM loading Wan A14B on 80 GB | MoE too big resident | Already fixed — code auto-enables `model_cpu_offload` below 120 GB VRAM |
+| LTX-2.3 `fp8e4nv not supported in this architecture` | fp8 quant on Ampere (A100 has no fp8 tensor cores) | Set LTX-2.3 Quantization = **blank** (bf16) + enable **CPU Offload**. fp8-cast only works on Ada/Hopper/Blackwell (4090, L40, H100). |
+| LTX-2.3 `Resolution not divisible by 64` | two-stage needs /64 dims | Already fixed — manager snaps width/height to /64 |
+| LTX-2.3 OOM in bf16 on 80 GB | 22B bf16 + Gemma + two-stage | Enable **CPU Offload** (ltx2_offload) in the LTX-2.3 Model Manager |
 | Cinema preset fails on LTX | Old wrong pipeline name | Already fixed (`two_stage_hq`) |
 | `Multiple -pix_fmt options` warning | Redundant ffmpeg flag | Harmless; already cleaned in code |
 

@@ -117,7 +117,8 @@ def create_video_tab(db: DatabaseManager):
                             mm_ltx2_gemma  = gr.Textbox(label="Gemma 3 Encoder Dir", placeholder="/workspace/models/LTX-2.3/gemma", interactive=True)
                         with gr.Column(scale=1):
                             mm_ltx2_module = gr.Dropdown(label="Pipeline Module", choices=["ltx_pipelines.ti2vid_two_stages", "ltx_pipelines.ti2vid_one_stage", "ltx_pipelines.distilled"], value="ltx_pipelines.ti2vid_two_stages", interactive=True)
-                            mm_ltx2_quant  = gr.Dropdown(label="Quantization", choices=["", "fp8-cast"], value="fp8-cast", interactive=True)
+                            mm_ltx2_quant  = gr.Dropdown(label="Quantization (fp8 = Hopper/Ada/Blackwell ONLY; use blank on A100)", choices=["", "fp8-cast"], value="", interactive=True)
+                            mm_ltx2_offload = gr.Checkbox(label="CPU Offload (needed for bf16 on single 80GB)", value=True, interactive=True)
                             mm_ltx2_extra  = gr.Textbox(label="Extra CLI args (advanced)", placeholder="--foo bar", interactive=True)
                     with gr.Row():
                         btn_detect_ltx2   = gr.Button("🔍 Detect", variant="secondary")
@@ -403,7 +404,7 @@ def create_video_tab(db: DatabaseManager):
         _, msg = ltx_manager.load_pipeline(pipe_name, ltx, upscaler, gemma, device, dtype, lora_full, float(lora_wt))
         return on_detect_ltx(ltx, gemma, upscaler, lora_dir) + f"<p style='color:#e5e7eb;'>{msg}</p>"
 
-    def on_save_config_ltx2(repo, python_path, ckpt, upsamp, lora, gemma, module, quant, extra):
+    def on_save_config_ltx2(repo, python_path, ckpt, upsamp, lora, gemma, module, quant, offload, extra):
         db.set_setting("ltx2_repo_dir", repo or "")
         db.set_setting("ltx2_venv_python", python_path or "")
         db.set_setting("ltx2_checkpoint_path", ckpt or "")
@@ -412,6 +413,7 @@ def create_video_tab(db: DatabaseManager):
         db.set_setting("ltx2_gemma_root", gemma or "")
         db.set_setting("ltx2_module", module or "ltx_pipelines.ti2vid_two_stages")
         db.set_setting("ltx2_quantization", quant or "")
+        db.set_setting("ltx2_offload", "true" if offload else "false")
         db.set_setting("ltx2_extra_args", extra or "")
         return "<div style='padding:8px;color:#22c55e;'>✅ LTX-2.3 paths saved.</div>"
 
@@ -669,7 +671,7 @@ def create_video_tab(db: DatabaseManager):
     btn_save_cfg_ltx.click(on_save_config_ltx, [mm_ltx_path, mm_gemma_path, mm_upscaler_path, mm_lora_dir, mm_device, mm_dtype], [mm_status_html_ltx])
     btn_detect_ltx.click(on_detect_ltx, [mm_ltx_path, mm_gemma_path, mm_upscaler_path, mm_lora_dir], [mm_status_html_ltx])
 
-    btn_save_cfg_ltx2.click(on_save_config_ltx2, [mm_ltx2_repo, mm_ltx2_python, mm_ltx2_ckpt, mm_ltx2_upsamp, mm_ltx2_lora, mm_ltx2_gemma, mm_ltx2_module, mm_ltx2_quant, mm_ltx2_extra], [mm_status_html_ltx2])
+    btn_save_cfg_ltx2.click(on_save_config_ltx2, [mm_ltx2_repo, mm_ltx2_python, mm_ltx2_ckpt, mm_ltx2_upsamp, mm_ltx2_lora, mm_ltx2_gemma, mm_ltx2_module, mm_ltx2_quant, mm_ltx2_offload, mm_ltx2_extra], [mm_status_html_ltx2])
     btn_detect_ltx2.click(on_detect_ltx2, [], [mm_status_html_ltx2])
     btn_load_pipe_ltx.click(on_load_pipe_ltx, [vid_pipeline, mm_ltx_path, mm_gemma_path, mm_upscaler_path, mm_lora_dir, mm_device, mm_dtype, vid_lora_selector, vid_lora_weight], [mm_status_html_ltx])
     btn_unload_ltx.click(lambda: on_unload("LTX-Video"), [], [mm_status_html_ltx])

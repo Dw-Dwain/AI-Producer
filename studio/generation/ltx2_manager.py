@@ -49,7 +49,11 @@ _DEFAULTS = {
     "ltx2_distilled_lora":  "",
     "ltx2_gemma_root":      "",
     "ltx2_module":          "ltx_pipelines.ti2vid_two_stages",
-    "ltx2_quantization":    "fp8-cast",
+    # fp8-cast (E4M3) only works on Hopper/Ada/Blackwell. A100 (Ampere) has no
+    # fp8 tensor cores -> default to bf16 (blank) + offload. On a 4090/L40/H100
+    # you can set quantization to fp8-cast for lower VRAM/faster.
+    "ltx2_quantization":    "",
+    "ltx2_offload":         "true",
 }
 
 
