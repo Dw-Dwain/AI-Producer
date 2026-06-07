@@ -324,6 +324,18 @@ The pipeline is invoked as a module in the venv:
 ```
 Pipeline modules: `ltx_pipelines.distilled` (fastest), `ltx_pipelines.ti2vid_one_stage`, `ltx_pipelines.ti2vid_two_stages` (best), `ltx_pipelines.ti2vid_two_stages_hq` (highest quality, slowest). Set paths in the UI → Model Manager → "LTX-2.3" tab. The "Extra CLI args" field passes through any extra flags without code changes.
 
+### ⚠️ GPU compatibility — LTX-2.3 on A100 (Ampere) is a poor fit
+
+**LTX-2.3's `fp8-cast` quantization requires fp8 tensor cores — Ada / Hopper / Blackwell only (RTX 4090, L40/L40S, RTX 6000 Ada, H100, RTX Pro 6000).** The A100 is **Ampere — no fp8 hardware** — so on A100 you must run **bf16 (Quantization blank) + CPU Offload**, which is slow: ~40 min for a ~5-second clip (121 frames @ 25fps).
+
+Per-pipeline CLI quirks the wrapper handles automatically (learned from each module's `--help`):
+- `distilled` uses `--distilled-checkpoint-path`, `--lora`; has **no** `--negative-prompt` or `--num-inference-steps`; needs the distilled checkpoint (`...distilled-1.1.safetensors`)
+- `ti2vid_two_stages` uses `--checkpoint-path`, `--distilled-lora`, `--negative-prompt`, `--num-inference-steps`; needs the dev checkpoint (`...22b-dev.safetensors`)
+- both require `--spatial-upsampler-path`; width/height must be **multiples of 64**
+- `--offload` takes a **value** (`CPU`/`NONE`/`DISK`), not a bare flag
+
+**Recommendation:** On an A100, **skip LTX-2.3** and use **Wan2.2-S2V** for native audio+video dialogue (it's built for it and runs well on 80 GB). Only run LTX-2.3 on an fp8-capable card, where you set Quantization back to `fp8-cast` for ~real-time-ish speed. The integration code is complete and correct for that scenario.
+
 ---
 
 ## 9. Launching the app
@@ -342,6 +354,26 @@ pkill -f studio/app.py              # stop
 ```
 
 `STUDIO_ENV=production` makes it use `/workspace/*` for logs/output/db.
+
+### Exposing a UI that has no `--share` (e.g. ComfyUI on 8188)
+
+The studio app uses Gradio `--share` (a public `gradio.live` URL). For tools without
+that (ComfyUI, etc.), use a **cloudflared quick tunnel** — no RunPod port exposure,
+no pod restart:
+
+```bash
+wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared
+chmod +x /usr/local/bin/cloudflared
+# IMPORTANT: use 127.0.0.1, NOT localhost — localhost resolves to IPv6 ::1 and
+# cloudflared gets "connection refused" because the app listens on IPv4 0.0.0.0.
+cloudflared tunnel --url http://127.0.0.1:8188
+```
+It prints a `https://<words>.trycloudflare.com` URL. Run it backgrounded with
+`nohup ... > /workspace/cf.log 2>&1 &` then `grep trycloudflare /workspace/cf.log`.
+
+> **Gotcha:** `cloudflared tunnel --url http://localhost:8188` fails with
+> `dial tcp [::1]:8188: connect: connection refused` — it tries IPv6. Always use
+> `http://127.0.0.1:8188`.
 
 ---
 
@@ -469,6 +501,11 @@ Every issue hit during deployment and its fix.
 | LTX-2.3 `fp8e4nv not supported in this architecture` | fp8 quant on Ampere (A100 has no fp8 tensor cores) | Set LTX-2.3 Quantization = **blank** (bf16) + enable **CPU Offload**. fp8-cast only works on Ada/Hopper/Blackwell (4090, L40, H100). |
 | LTX-2.3 `Resolution not divisible by 64` | two-stage needs /64 dims | Already fixed — manager snaps width/height to /64 |
 | LTX-2.3 OOM in bf16 on 80 GB | 22B bf16 + Gemma + two-stage | Enable **CPU Offload** (ltx2_offload) in the LTX-2.3 Model Manager |
+| LTX-2.3 `invalid OffloadMode value: 'OffloadMode.CPU'` | offload wants bare enum name | Already fixed — wrapper passes `CPU`/`NONE` |
+| LTX-2.3 `--offload: expected one argument` | offload is a value, not a flag | Already fixed |
+| LTX-2.3 distilled `unrecognized --negative-prompt`/`--num-inference-steps` | distilled pipeline doesn't accept them | Already fixed (pipeline-aware args) |
+| LTX-2.3 `ModuleNotFoundError: ltx_pipelines` | wrong venv python (empty `/workspace/LTX-2/.venv`) | Set venv python to `/root/ltx2-venv/bin/python` and **re-Save** in UI |
+| cloudflared `dial tcp [::1]:8188 connection refused` | `localhost` resolves to IPv6 | Use `--url http://127.0.0.1:8188` |
 | Cinema preset fails on LTX | Old wrong pipeline name | Already fixed (`two_stage_hq`) |
 | `Multiple -pix_fmt options` warning | Redundant ffmpeg flag | Harmless; already cleaned in code |
 
