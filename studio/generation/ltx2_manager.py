@@ -130,9 +130,13 @@ class LTX2Manager:
         )
         cmd = [cfg["ltx2_venv_python"], "-m", module]
 
-        # Flag names verified against ltx_pipelines/utils/args.py
-        # (default_2_stage_arg_parser).
-        cmd += ["--checkpoint-path", cfg["ltx2_checkpoint_path"]]
+        # Flag names verified against ltx_pipelines/utils/args.py.
+        # The distilled pipeline takes --distilled-checkpoint-path; the
+        # one/two-stage pipelines take --checkpoint-path.
+        if module.endswith("distilled"):
+            cmd += ["--distilled-checkpoint-path", cfg["ltx2_checkpoint_path"]]
+        else:
+            cmd += ["--checkpoint-path", cfg["ltx2_checkpoint_path"]]
         cmd += ["--gemma-root", cfg["ltx2_gemma_root"]]
 
         # Two-stage needs the spatial upsampler + distilled LoRA for stage 2.
