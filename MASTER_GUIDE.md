@@ -279,20 +279,37 @@ Result: venv at **`/root/ltx2-venv`** → the venv python is `/root/ltx2-venv/bi
 > **The LTX-2 venv is on the container disk (`/root`) — it's wiped on restart and
 > must be rebuilt** (`uv sync` again, ~1 min from cache). The model on `/workspace` persists.
 
-### Download the LTX-2.3 model
+### Download the LTX-2.3 model + Gemma 3 encoder
 
 ```bash
 # IMPORTANT: deactivate the LTX-2 venv first so the system `hf` (with hf_transfer) is used
 deactivate 2>/dev/null
 export HF_HUB_DISABLE_XET=1 HF_HUB_ENABLE_HF_TRANSFER=1
+
+# The model repo (~147 GB — contains dev + distilled checkpoints, upscalers, LoRAs)
 hf download Lightricks/LTX-2.3 --local-dir /workspace/models/LTX-2.3 --max-workers 1
 rm -rf /workspace/models/LTX-2.3/.cache
+
+# Gemma 3 text encoder — REQUIRED, NOT bundled in the model repo.
+# Must be this exact variant (per LTX-2 quick-start.md). Gated: accept license at
+# https://huggingface.co/google/gemma-3-12b-it-qat-q4_0-unquantized first.
+hf download google/gemma-3-12b-it-qat-q4_0-unquantized --local-dir /workspace/models/gemma-3-12b-it-qat --max-workers 1
+rm -rf /workspace/models/gemma-3-12b-it-qat/.cache
 ```
-Then list the real filenames to map into the UI:
-```bash
-find /workspace/models/LTX-2.3 -name "*.safetensors"
-ls /workspace/models/LTX-2.3
-```
+The LTX-2.3 repo contains multiple variants; pick the matching `1.1` set:
+| Role | File | UI field |
+|---|---|---|
+| Full checkpoint (stage 1) | `ltx-2.3-22b-dev.safetensors` | Checkpoint |
+| Distilled LoRA (stage 2) | `ltx-2.3-22b-distilled-lora-384-1.1.safetensors` | Distilled LoRA |
+| Spatial upsampler | `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` | Spatial Upsampler |
+| Gemma 3 encoder dir | `/workspace/models/gemma-3-12b-it-qat` | Gemma 3 Encoder Dir |
+| (fast alt checkpoint) | `ltx-2.3-22b-distilled-1.1.safetensors` | use with `ltx_pipelines.distilled` |
+
+> `--gemma-root` points to the **directory** containing `model*.safetensors`
+> (standard HF format) — not a single file.
+>
+> **Disk note:** LTX-2.3 (~147 GB) + Gemma (~24 GB) + Wan T2V+I2V (~236 GB) = ~407 GB
+> of a 500 GB volume. You can't also fit Hunyuan — prune per project.
 
 ### CLI reference (how the wrapper drives it)
 The pipeline is invoked as a module in the venv:
@@ -305,7 +322,7 @@ The pipeline is invoked as a module in the venv:
     --num-inference-steps S --seed SEED \
     --quantization fp8-cast --output-path out.mp4
 ```
-Pipeline modules: `ltx_pipelines.distilled` (fastest), `ltx_pipelines.ti2vid_one_stage`, `ltx_pipelines.ti2vid_two_stages` (best). Set paths in the UI → Model Manager → "LTX-2.3" tab. The "Extra CLI args" field passes through any extra flags without code changes.
+Pipeline modules: `ltx_pipelines.distilled` (fastest), `ltx_pipelines.ti2vid_one_stage`, `ltx_pipelines.ti2vid_two_stages` (best), `ltx_pipelines.ti2vid_two_stages_hq` (highest quality, slowest). Set paths in the UI → Model Manager → "LTX-2.3" tab. The "Extra CLI args" field passes through any extra flags without code changes.
 
 ---
 
