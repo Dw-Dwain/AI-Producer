@@ -37,9 +37,9 @@ _LTX_PRESETS = {
     "cinema":     {"width": 768, "height": 1344, "fps": 24, "num_frames": 129, "steps": 50, "guidance_scale": 4.0, "pipeline": "two_stage_hq"},
 }
 
-# LTX-2.3 — native audio+video. Pipeline values map to ltx2_manager modules.
+# LTX-2.3 — native audio+video. All dims are multiples of 64 (two-stage requires it).
 _LTX2_PRESETS = {
-    "draft":      {"width": 480, "height": 832,  "fps": 25, "num_frames": 97,  "steps": 8,  "guidance_scale": 1.0, "pipeline": "distilled"},
+    "draft":      {"width": 512, "height": 896,  "fps": 25, "num_frames": 97,  "steps": 8,  "guidance_scale": 1.0, "pipeline": "distilled"},
     "production": {"width": 704, "height": 1216, "fps": 25, "num_frames": 121, "steps": 30, "guidance_scale": 3.0, "pipeline": "two_stage"},
     "cinema":     {"width": 1088, "height": 1920, "fps": 25, "num_frames": 121, "steps": 40, "guidance_scale": 3.5, "pipeline": "two_stage"},
 }

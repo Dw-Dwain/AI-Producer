@@ -145,9 +145,14 @@ class LTX2Manager:
         if job.get("negative_prompt"):
             cmd += ["--negative-prompt", job["negative_prompt"]]
 
-        # Resolution / timing / steps / seed
-        if job.get("width"):      cmd += ["--width", str(job["width"])]
-        if job.get("height"):     cmd += ["--height", str(job["height"])]
+        # Resolution / timing / steps / seed.
+        # LTX-2 two-stage requires width/height divisible by 64 — snap to the
+        # nearest multiple of 64 so any UI resolution is valid.
+        def _round64(v):
+            v = int(v)
+            return max(64, round(v / 64) * 64)
+        if job.get("width"):      cmd += ["--width", str(_round64(job["width"]))]
+        if job.get("height"):     cmd += ["--height", str(_round64(job["height"]))]
         if job.get("num_frames"): cmd += ["--num-frames", str(job["num_frames"])]
         if job.get("fps"):        cmd += ["--frame-rate", str(job["fps"])]
         if job.get("steps"):      cmd += ["--num-inference-steps", str(job["steps"])]
