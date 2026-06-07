@@ -110,7 +110,7 @@ def create_video_tab(db: DatabaseManager):
                     with gr.Row():
                         with gr.Column(scale=3):
                             mm_ltx2_repo   = gr.Textbox(label="LTX-2 Repo Dir", value="/workspace/LTX-2", interactive=True)
-                            mm_ltx2_python = gr.Textbox(label="LTX-2 venv Python", value="/workspace/LTX-2/.venv/bin/python", interactive=True)
+                            mm_ltx2_python = gr.Textbox(label="LTX-2 venv Python", value="/root/ltx2-venv/bin/python", interactive=True)
                             mm_ltx2_ckpt   = gr.Textbox(label="LTX-2.3 Checkpoint (.safetensors)", placeholder="/workspace/models/LTX-2.3/ltxv-2.3-....safetensors", interactive=True)
                             mm_ltx2_upsamp = gr.Textbox(label="Spatial Upsampler (.safetensors)", placeholder="/workspace/models/LTX-2.3/...upsampler....safetensors", interactive=True)
                             mm_ltx2_lora   = gr.Textbox(label="Distilled LoRA (.safetensors)", placeholder="/workspace/models/LTX-2.3/...distilled....safetensors", interactive=True)

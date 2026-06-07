@@ -41,7 +41,9 @@ PIPELINE_MODULES = {
 # Default DB-setting keys -> fallbacks
 _DEFAULTS = {
     "ltx2_repo_dir":        "/workspace/LTX-2",
-    "ltx2_venv_python":     "/workspace/LTX-2/.venv/bin/python",
+    # venv is built on local disk (UV_PROJECT_ENVIRONMENT) because MooseFS can't
+    # handle a venv build; see MASTER_GUIDE §8.
+    "ltx2_venv_python":     "/root/ltx2-venv/bin/python",
     "ltx2_checkpoint_path": "",
     "ltx2_upsampler_path":  "",
     "ltx2_distilled_lora":  "",
