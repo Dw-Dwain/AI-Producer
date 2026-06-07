@@ -116,41 +116,54 @@ class LTX2Manager:
 
     # -- command construction --------------------------------------------
     def _build_command(self, cfg: dict, job: dict, output_path: str) -> list:
-        module = cfg.get("ltx2_module") or "ltx_pipelines.ti2vid_two_stages"
+        # Module follows the job's pipeline choice (distilled/one_stage/two_stage),
+        # falling back to the configured default module.
+        module = PIPELINE_MODULES.get(
+            job.get("pipeline", ""),
+            cfg.get("ltx2_module") or "ltx_pipelines.ti2vid_two_stages",
+        )
         cmd = [cfg["ltx2_venv_python"], "-m", module]
 
+        # Flag names verified against ltx_pipelines/utils/args.py
+        # (default_2_stage_arg_parser).
         cmd += ["--checkpoint-path", cfg["ltx2_checkpoint_path"]]
         cmd += ["--gemma-root", cfg["ltx2_gemma_root"]]
 
-        # Two-stage needs the spatial upsampler and the distilled LoRA (+strength)
-        if "two_stages" in module or "two_stage" in module:
+        # Two-stage needs the spatial upsampler + distilled LoRA for stage 2.
+        if "two_stage" in module:
             if cfg.get("ltx2_upsampler_path"):
                 cmd += ["--spatial-upsampler-path", cfg["ltx2_upsampler_path"]]
             if cfg.get("ltx2_distilled_lora"):
-                strength = str(job.get("lora_weight") or 0.8)
-                cmd += ["--distilled-lora", cfg["ltx2_distilled_lora"], strength]
+                # --distilled-lora takes the path; stage strengths are separate
+                # flags with sane defaults in the parser.
+                cmd += ["--distilled-lora", cfg["ltx2_distilled_lora"]]
 
         # Prompt / negative
         cmd += ["--prompt", job.get("prompt") or ""]
         if job.get("negative_prompt"):
             cmd += ["--negative-prompt", job["negative_prompt"]]
 
-        # Resolution / timing / seed.
-        # NOTE: exact flag names are confirmed against `--help` and may be
-        # overridden per-deployment via the ltx2_extra_args setting.
+        # Resolution / timing / steps / seed
         if job.get("width"):      cmd += ["--width", str(job["width"])]
         if job.get("height"):     cmd += ["--height", str(job["height"])]
         if job.get("num_frames"): cmd += ["--num-frames", str(job["num_frames"])]
         if job.get("fps"):        cmd += ["--frame-rate", str(job["fps"])]
+        if job.get("steps"):      cmd += ["--num-inference-steps", str(job["steps"])]
         if job.get("seed") is not None and int(job.get("seed", -1)) >= 0:
             cmd += ["--seed", str(job["seed"])]
 
-        # Optional image conditioning (image-to-video)
+        # Image conditioning (image-to-video). --image takes:
+        #   <path> <target_frame> <strength> <noise>
+        # We condition the first frame at full strength by default; tune via
+        # ltx2_extra_args / the I2V conditioning string if needed.
         ref = job.get("reference_image_path")
         if ref and os.path.isfile(str(ref)):
-            cmd += ["--image-path", ref]
+            cmd += ["--image", ref, "0", "1.0", "0"]
 
-        # Quantization (fp8 saves VRAM; "" disables)
+        # Memory: --offload helps fit on a single 80GB card; fp8 quant reduces
+        # weight footprint. Both configurable.
+        if str(_setting(self.db, "ltx2_offload")).lower() in ("1", "true", "yes", "on"):
+            cmd += ["--offload"]
         quant = cfg.get("ltx2_quantization")
         if quant:
             cmd += ["--quantization", quant]
